@@ -15,17 +15,17 @@ jobs:
 
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install PNPM
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         id: pnpm-install
         with:
           version: 9
           run_install: false
 
       - name: Install Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: 'pnpm'
@@ -34,7 +34,7 @@ jobs:
         run: pnpm install
 
       - name: Install SDK test dependencies
-        run: cd test && pnpm install
+        run: cd test && pnpm install --ignore-workspace
 
       - name: Lint
         run: pnpm lint
