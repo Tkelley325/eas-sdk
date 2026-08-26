@@ -1,5 +1,5 @@
 import { EAS as EASContract } from '@ethereum-attestation-service/eas-contracts';
-import { Overrides } from 'ethers';
+import { Overrides, TransactionReceipt, TransactionResponse } from 'ethers';
 import { EIP712Proxy } from './eip712-proxy';
 import { Delegated, Offchain } from './offchain';
 import { AttestationRequest, DelegatedAttestationRequest, DelegatedProxyAttestationRequest, DelegatedProxyRevocationRequest, DelegatedRevocationRequest, MultiAttestationRequest, MultiDelegatedAttestationRequest, MultiDelegatedProxyAttestationRequest, MultiDelegatedProxyRevocationRequest, MultiDelegatedRevocationRequest, MultiRevocationRequest, RevocationRequest } from './request';
@@ -62,7 +62,13 @@ export declare class EAS extends Base<EASContract> {
     getAttestTypeHash(): Promise<string>;
     getRevokeTypeHash(): Promise<string>;
     static getAttestationUID: (schema: string, recipient: string, attester: string, time: bigint, expirationTime: bigint, revocable: boolean, refUID: string, data: string, bump: number) => string;
+    getUIDFromAttestTx(res: Promise<TransactionResponse> | TransactionResponse): Promise<string>;
+    getUIDsFromMultiAttestTx(res: Promise<TransactionResponse> | TransactionResponse): Promise<string[]>;
+    getUIDsFromAttestReceipt(receipt: TransactionReceipt): string[];
+    getTimestampFromTimestampReceipt(receipt: TransactionReceipt): bigint[];
+    getTimestampFromOffchainRevocationReceipt(receipt: TransactionReceipt): bigint[];
     private setDelegated;
     private setOffchain;
     private isLegacyContract;
+    private getDataFromReceipt;
 }
