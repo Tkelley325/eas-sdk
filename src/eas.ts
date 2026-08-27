@@ -2,10 +2,13 @@ import { EAS as EASContract, EAS__factory as EASFactory } from '@ethereum-attest
 import {
   ContractTransaction,
   hexlify,
+  Interface,
+  keccak256,
   Overrides,
   solidityPackedKeccak256,
   toUtf8Bytes,
-  TransactionReceipt
+  TransactionReceipt,
+  TransactionResponse
 } from 'ethers';
 import semver from 'semver';
 import { EIP712Proxy } from './eip712-proxy';
@@ -28,15 +31,21 @@ import {
   RevocationRequest
 } from './request';
 import { Base, RequireSigner, Transaction, TransactionProvider, TransactionSigner } from './transaction';
-import {
-  getTimestampFromOffchainRevocationReceipt,
-  getTimestampFromTimestampReceipt,
-  getUIDsFromAttestReceipt,
-  ZERO_ADDRESS,
-  ZERO_BYTES32
-} from './utils';
+import { ZERO_ADDRESS, ZERO_BYTES32 } from './utils';
 
 const LEGACY_VERSION = '1.1.0';
+
+enum Event {
+  Attested = 'Attested',
+  Timestamped = 'Timestamped',
+  RevokedOffchain = 'RevokedOffchain'
+}
+
+const TOPICS = {
+  [Event.Attested]: keccak256(toUtf8Bytes('Attested(address,address,bytes32,bytes32)')),
+  [Event.Timestamped]: keccak256(toUtf8Bytes('Timestamped(bytes32,uint64)')),
+  [Event.RevokedOffchain]: keccak256(toUtf8Bytes('RevokedOffchain(address,bytes32,uint64)'))
+};
 
 export { Overrides } from 'ethers';
 export * from './request';
@@ -241,7 +250,7 @@ export class EAS extends Base<EASContract> {
       ),
       this.signer!,
       // eslint-disable-next-line require-await
-      async (receipt: TransactionReceipt) => getUIDsFromAttestReceipt(receipt)[0]
+      async (receipt: TransactionReceipt) => this.getUIDsFromAttestReceipt(receipt)[0]
     );
   }
 
@@ -307,7 +316,7 @@ export class EAS extends Base<EASContract> {
       tx,
       this.signer!,
       // eslint-disable-next-line require-await
-      async (receipt: TransactionReceipt) => getUIDsFromAttestReceipt(receipt)[0]
+      async (receipt: TransactionReceipt) => this.getUIDsFromAttestReceipt(receipt)[0]
     );
   }
 
@@ -338,7 +347,7 @@ export class EAS extends Base<EASContract> {
       }),
       this.signer!,
       // eslint-disable-next-line require-await
-      async (receipt: TransactionReceipt) => getUIDsFromAttestReceipt(receipt)
+      async (receipt: TransactionReceipt) => this.getUIDsFromAttestReceipt(receipt)
     );
   }
 
@@ -406,7 +415,7 @@ export class EAS extends Base<EASContract> {
       tx,
       this.signer!,
       // eslint-disable-next-line require-await
-      async (receipt: TransactionReceipt) => getUIDsFromAttestReceipt(receipt)
+      async (receipt: TransactionReceipt) => this.getUIDsFromAttestReceipt(receipt)
     );
   }
 
@@ -590,7 +599,7 @@ export class EAS extends Base<EASContract> {
       await this.contract.timestamp.populateTransaction(data, overrides ?? {}),
       this.signer!,
       // eslint-disable-next-line require-await
-      async (receipt: TransactionReceipt) => getTimestampFromTimestampReceipt(receipt)[0]
+      async (receipt: TransactionReceipt) => this.getTimestampFromTimestampReceipt(receipt)[0]
     );
   }
 
@@ -601,7 +610,7 @@ export class EAS extends Base<EASContract> {
       await this.contract.multiTimestamp.populateTransaction(data, overrides ?? {}),
       this.signer!,
       // eslint-disable-next-line require-await
-      async (receipt: TransactionReceipt) => getTimestampFromTimestampReceipt(receipt)
+      async (receipt: TransactionReceipt) => this.getTimestampFromTimestampReceipt(receipt)
     );
   }
 
@@ -612,7 +621,7 @@ export class EAS extends Base<EASContract> {
       await this.contract.revokeOffchain.populateTransaction(uid, overrides ?? {}),
       this.signer!,
       // eslint-disable-next-line require-await
-      async (receipt: TransactionReceipt) => getTimestampFromOffchainRevocationReceipt(receipt)[0]
+      async (receipt: TransactionReceipt) => this.getTimestampFromOffchainRevocationReceipt(receipt)[0]
     );
   }
 
@@ -623,7 +632,7 @@ export class EAS extends Base<EASContract> {
       await this.contract.multiRevokeOffchain.populateTransaction(uids, overrides ?? {}),
       this.signer!,
       // eslint-disable-next-line require-await
-      async (receipt: TransactionReceipt) => getTimestampFromOffchainRevocationReceipt(receipt)
+      async (receipt: TransactionReceipt) => this.getTimestampFromOffchainRevocationReceipt(receipt)
     );
   }
 
@@ -664,6 +673,32 @@ export class EAS extends Base<EASContract> {
       [hexlify(toUtf8Bytes(schema)), recipient, attester, time, expirationTime, revocable, refUID, data, bump]
     );
 
+  public async getUIDFromAttestTx(res: Promise<TransactionResponse> | TransactionResponse): Promise<string> {
+    return (await this.getUIDsFromMultiAttestTx(res))[0];
+  }
+
+  public async getUIDsFromMultiAttestTx(res: Promise<TransactionResponse> | TransactionResponse): Promise<string[]> {
+    const tx = await res;
+    const receipt = await tx.wait();
+    if (!receipt) {
+      throw new Error(`Unable to confirm: ${tx}`);
+    }
+
+    return this.getUIDsFromAttestReceipt(receipt);
+  }
+
+  public getUIDsFromAttestReceipt(receipt: TransactionReceipt): string[] {
+    return this.getDataFromReceipt(receipt, Event.Attested, 'uid');
+  }
+
+  public getTimestampFromTimestampReceipt(receipt: TransactionReceipt): bigint[] {
+    return this.getDataFromReceipt(receipt, Event.Timestamped, 'timestamp').map((s) => BigInt(s));
+  }
+
+  public getTimestampFromOffchainRevocationReceipt(receipt: TransactionReceipt): bigint[] {
+    return this.getDataFromReceipt(receipt, Event.RevokedOffchain, 'timestamp').map((s) => BigInt(s));
+  }
+
   // Sets the delegated attestations helper
   private async setDelegated(): Promise<Delegated> {
     this.delegated = new Delegated(
@@ -700,5 +735,38 @@ export class EAS extends Base<EASContract> {
       throw new Error(`Invalid version: ${version}`);
     }
     return semver.lte(fullVersion, LEGACY_VERSION);
+  }
+
+  private getDataFromReceipt(receipt: TransactionReceipt, event: Event, attribute: string): string[] {
+    const eas = new Interface(EASFactory.abi);
+    const easAddress = this.contract.target as string;
+    const logs = [];
+
+    for (const log of receipt.logs.filter(
+      (l) => l.topics[0] === TOPICS[event] && l.address.toLowerCase() === easAddress.toLowerCase()
+    ) || []) {
+      logs.push({
+        ...log,
+        log: event,
+        fragment: {
+          name: event
+        },
+        args: eas.decodeEventLog(event, log.data, log.topics)
+      });
+    }
+
+    if (!logs) {
+      return [];
+    }
+
+    const filteredLogs = logs.filter((l) => l.fragment?.name === event);
+    if (filteredLogs.length === 0) {
+      throw new Error(`Unable to process ${event} events`);
+    }
+
+    return filteredLogs.map(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (log: any) => eas.decodeEventLog(event, log.data, log.topics)[attribute]
+    );
   }
 }

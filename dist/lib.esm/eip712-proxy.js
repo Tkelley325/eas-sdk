@@ -1,12 +1,14 @@
 import { __decorate, __metadata } from "tslib";
 import { EIP712Proxy__factory } from '@ethereum-attestation-service/eas-contracts';
+import { EAS } from './eas.js';
 import { legacyVersion } from './legacy/version.js';
 import { DelegatedProxy } from './offchain/index.js';
 import { NO_EXPIRATION } from './request.js';
 import { Base, RequireSigner, Transaction } from './transaction.js';
-import { getUIDsFromAttestReceipt, ZERO_BYTES32 } from './utils.js';
+import { ZERO_BYTES32 } from './utils.js';
 export class EIP712Proxy extends Base {
     delegated;
+    eas;
     constructor(address, options) {
         const { signer } = options || {};
         super(new EIP712Proxy__factory(), address, signer);
@@ -14,6 +16,7 @@ export class EIP712Proxy extends Base {
     // Connects the API to a specific signer
     connect(signer) {
         delete this.delegated;
+        delete this.eas;
         super.connect(signer);
         return this;
     }
@@ -22,8 +25,15 @@ export class EIP712Proxy extends Base {
         return (await legacyVersion(this.contract)) ?? this.contract.version();
     }
     // Returns the address of the EAS contract
-    getEAS() {
+    getEASAddress() {
         return this.contract.getEAS();
+    }
+    // Returns the EAS API
+    async getEAS() {
+        if (this.eas) {
+            return this.eas;
+        }
+        return (this.eas = new EAS(await this.getEASAddress(), { signer: this.signer }));
     }
     // Returns the EIP712 name
     getName() {
@@ -67,9 +77,7 @@ export class EIP712Proxy extends Base {
             signature,
             attester,
             deadline
-        }, { value, ...overrides }), this.signer, 
-        // eslint-disable-next-line require-await
-        async (receipt) => getUIDsFromAttestReceipt(receipt)[0]);
+        }, { value, ...overrides }), this.signer, async (receipt) => (await this.getEAS()).getUIDsFromAttestReceipt(receipt)[0]);
     }
     // Multi-attests to multiple schemas via an EIP712 delegation requests using an external EIP712 proxy
     async multiAttestByDelegationProxy(requests, overrides) {
@@ -94,9 +102,7 @@ export class EIP712Proxy extends Base {
         return new Transaction(await this.contract.multiAttestByDelegation.populateTransaction(multiAttestationRequests, {
             value: requestedValue,
             ...overrides
-        }), this.signer, 
-        // eslint-disable-next-line require-await
-        async (receipt) => getUIDsFromAttestReceipt(receipt));
+        }), this.signer, async (receipt) => (await this.getEAS()).getUIDsFromAttestReceipt(receipt));
     }
     // Revokes an existing attestation an EIP712 delegation request using an external EIP712 proxy
     async revokeByDelegationProxy({ schema, data: { uid, value = 0n }, signature, revoker, deadline = NO_EXPIRATION }, overrides) {

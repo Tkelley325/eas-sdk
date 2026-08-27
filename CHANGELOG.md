@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.10.0
+
+- Move receipt UID/timestamp helpers onto EAS and filter logs by EAS address
+- Have EIP712Proxy.getEAS return an EAS instance
+- Add EIP712Proxy.getEASAddress for the EAS contract address
+- Have Indexer.getEAS return an EAS instance and add Indexer.getEASAddress
+
 ## 2.9.1
 
 - Fix nested tuple schema decoding

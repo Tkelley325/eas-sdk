@@ -1,5 +1,6 @@
 import { EIP712Proxy__factory, EIP712Proxy as EIP712ProxyContract } from '@ethereum-attestation-service/eas-contracts';
 import { Overrides, TransactionReceipt } from 'ethers';
+import { EAS } from './eas';
 import { legacyVersion } from './legacy/version';
 import { DelegatedProxy } from './offchain';
 import {
@@ -10,7 +11,7 @@ import {
   NO_EXPIRATION
 } from './request';
 import { Base, RequireSigner, Transaction, TransactionProvider, TransactionSigner } from './transaction';
-import { getUIDsFromAttestReceipt, ZERO_BYTES32 } from './utils';
+import { ZERO_BYTES32 } from './utils';
 
 export interface EIP712ProxyOptions {
   signer?: TransactionSigner | TransactionProvider;
@@ -18,6 +19,7 @@ export interface EIP712ProxyOptions {
 
 export class EIP712Proxy extends Base<EIP712ProxyContract> {
   private delegated?: DelegatedProxy;
+  private eas?: EAS;
 
   constructor(address: string, options?: EIP712ProxyOptions) {
     const { signer } = options || {};
@@ -28,6 +30,7 @@ export class EIP712Proxy extends Base<EIP712ProxyContract> {
   // Connects the API to a specific signer
   public connect(signer: TransactionSigner | TransactionProvider) {
     delete this.delegated;
+    delete this.eas;
 
     super.connect(signer);
 
@@ -40,8 +43,17 @@ export class EIP712Proxy extends Base<EIP712ProxyContract> {
   }
 
   // Returns the address of the EAS contract
-  public getEAS(): Promise<string> {
+  public getEASAddress(): Promise<string> {
     return this.contract.getEAS();
+  }
+
+  // Returns the EAS API
+  public async getEAS(): Promise<EAS> {
+    if (this.eas) {
+      return this.eas;
+    }
+
+    return (this.eas = new EAS(await this.getEASAddress(), { signer: this.signer }));
   }
 
   // Returns the EIP712 name
@@ -108,8 +120,7 @@ export class EIP712Proxy extends Base<EIP712ProxyContract> {
         { value, ...overrides }
       ),
       this.signer!,
-      // eslint-disable-next-line require-await
-      async (receipt: TransactionReceipt) => getUIDsFromAttestReceipt(receipt)[0]
+      async (receipt: TransactionReceipt) => (await this.getEAS()).getUIDsFromAttestReceipt(receipt)[0]
     );
   }
 
@@ -145,8 +156,7 @@ export class EIP712Proxy extends Base<EIP712ProxyContract> {
         ...overrides
       }),
       this.signer!,
-      // eslint-disable-next-line require-await
-      async (receipt: TransactionReceipt) => getUIDsFromAttestReceipt(receipt)
+      async (receipt: TransactionReceipt) => (await this.getEAS()).getUIDsFromAttestReceipt(receipt)
     );
   }
 

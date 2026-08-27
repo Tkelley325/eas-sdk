@@ -1,5 +1,6 @@
 import { Indexer__factory, Indexer as IndexerContract } from '@ethereum-attestation-service/eas-contracts';
 import { Overrides } from 'ethers';
+import { EAS } from './eas';
 import { legacyVersion } from './legacy/version';
 import { DelegatedProxy } from './offchain';
 import { Base, RequireSigner, Transaction, TransactionProvider, TransactionSigner } from './transaction';
@@ -58,6 +59,7 @@ export interface GetSchemaAttestationUIDCountOptions {
 
 export class Indexer extends Base<IndexerContract> {
   private delegated?: DelegatedProxy;
+  private eas?: EAS;
 
   constructor(address: string, options?: IndexerOptions) {
     const { signer } = options || {};
@@ -68,6 +70,7 @@ export class Indexer extends Base<IndexerContract> {
   // Connects the API to a specific signer
   public connect(signer: TransactionSigner | TransactionProvider) {
     delete this.delegated;
+    delete this.eas;
 
     super.connect(signer);
 
@@ -80,8 +83,17 @@ export class Indexer extends Base<IndexerContract> {
   }
 
   // Returns the address of the EAS contract
-  public getEAS(): Promise<string> {
+  public getEASAddress(): Promise<string> {
     return this.contract.getEAS();
+  }
+
+  // Returns the EAS API
+  public async getEAS(): Promise<EAS> {
+    if (this.eas) {
+      return this.eas;
+    }
+
+    return (this.eas = new EAS(await this.getEASAddress(), { signer: this.signer }));
   }
 
   // Indexes an existing attestation
