@@ -1,9 +1,11 @@
 import { __decorate, __metadata } from "tslib";
 import { Indexer__factory } from '@ethereum-attestation-service/eas-contracts';
+import { EAS } from './eas.js';
 import { legacyVersion } from './legacy/version.js';
 import { Base, RequireSigner, Transaction } from './transaction.js';
 export class Indexer extends Base {
     delegated;
+    eas;
     constructor(address, options) {
         const { signer } = options || {};
         super(new Indexer__factory(), address, signer);
@@ -11,6 +13,7 @@ export class Indexer extends Base {
     // Connects the API to a specific signer
     connect(signer) {
         delete this.delegated;
+        delete this.eas;
         super.connect(signer);
         return this;
     }
@@ -19,8 +22,15 @@ export class Indexer extends Base {
         return (await legacyVersion(this.contract)) ?? this.contract.version();
     }
     // Returns the address of the EAS contract
-    getEAS() {
+    getEASAddress() {
         return this.contract.getEAS();
+    }
+    // Returns the EAS API
+    async getEAS() {
+        if (this.eas) {
+            return this.eas;
+        }
+        return (this.eas = new EAS(await this.getEASAddress(), { signer: this.signer }));
     }
     // Indexes an existing attestation
     async indexAttestation({ uid }, overrides) {

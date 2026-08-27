@@ -27,12 +27,16 @@ class EIP712Proxy extends transaction_1.Base {
     async getVersion() {
         return (await (0, version_1.legacyVersion)(this.contract)) ?? this.contract.version();
     }
+    // Returns the address of the EAS contract
+    getEASAddress() {
+        return this.contract.getEAS();
+    }
     // Returns the EAS API
     async getEAS() {
         if (this.eas) {
             return this.eas;
         }
-        return (this.eas = new eas_1.EAS(await this.contract.getEAS(), { signer: this.signer }));
+        return (this.eas = new eas_1.EAS(await this.getEASAddress(), { signer: this.signer }));
     }
     // Returns the EIP712 name
     getName() {

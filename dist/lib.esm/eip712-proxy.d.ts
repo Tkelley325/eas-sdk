@@ -13,6 +13,7 @@ export declare class EIP712Proxy extends Base<EIP712ProxyContract> {
     constructor(address: string, options?: EIP712ProxyOptions);
     connect(signer: TransactionSigner | TransactionProvider): this;
     getVersion(): Promise<string>;
+    getEASAddress(): Promise<string>;
     getEAS(): Promise<EAS>;
     getName(): Promise<string>;
     getDomainSeparator(): Promise<string>;
